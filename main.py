@@ -1,5 +1,5 @@
 import streamlit as st
-import requests
+from openai import OpenAI
 import time
 import json
 
@@ -10,102 +10,88 @@ st.set_page_config(
     layout="centered"
 )
 
-# OpenAI API 설정
-# 에러 수정 팁: 401 오류는 아래 변수에 입력한 키가 틀렸을 때 발생합니다. 
-# https://platform.openai.com/api-keys 에서 키를 다시 발급받아 붙여넣어주세요.
-OPENAI_API_KEY = "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" 
-
-def get_gpt_recommendation(mood, weather, taste, preferred_categories):
-    """ChatGPT API(GPT-4o)를 호출하여 음식 추천을 받습니다."""
+def get_gpt_recommendation(api_key, mood, weather, taste, preferred_categories):
+    """OpenAI 공식 라이브러리를 사용하여 음식 추천을 받습니다."""
     
     # 키가 비어있는지 확인
-    if not OPENAI_API_KEY or OPENAI_API_KEY == "":
+    if not api_key:
         return {
-            "menu_name": "API 키 미설정",
-            "reason": "코드 상단의 OPENAI_API_KEY 변수에 본인의 API 키를 입력해야 합니다.",
-            "tip": "발급받은 sk-... 형식의 키를 따옴표 사이에 넣어주세요."
+            "menu_name": "API 키 미입력",
+            "reason": "화면 상단에서 OpenAI API Key를 입력해주세요.",
+            "tip": "sk-... 형식의 키가 필요합니다."
         }
 
-    url = "https://api.openai.com/v1/chat/completions"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY.strip()}" # 공백 제거 처리 추가
-    }
-    
-    prompt = f"""
-    당신은 최고의 미식가이자 영양사입니다. 다음 상황에 가장 잘 어울리는 음식 메뉴 1개를 추천해주세요.
-    
-    상황 정보:
-    - 기분: {mood}
-    - 날씨: {weather}
-    - 당기는 맛: {taste}
-    - 선호 카테고리: {', '.join(preferred_categories)}
-    
-    반드시 다음 JSON 형식을 엄격히 지켜서 출력하세요 (추가 텍스트 없이 JSON만 반환):
-    {{
-      "menu_name": "음식 이름",
-      "reason": "추천하는 이유 (2~3문장)",
-      "tip": "더 맛있게 먹는 팁"
-    }}
-    """
+    try:
+        # OpenAI 클라이언트 초기화
+        client = OpenAI(api_key=api_key.strip())
+        
+        prompt = f"""
+        당신은 최고의 미식가이자 영양사입니다. 다음 상황에 가장 잘 어울리는 음식 메뉴 1개를 추천해주세요.
+        
+        상황 정보:
+        - 기분: {mood}
+        - 날씨: {weather}
+        - 당기는 맛: {taste}
+        - 선호 카테고리: {', '.join(preferred_categories)}
+        
+        반드시 다음 JSON 형식을 엄격히 지켜서 출력하세요 (추가 텍스트 없이 JSON만 반환):
+        {{
+          "menu_name": "음식 이름",
+          "reason": "추천하는 이유 (2~3문장)",
+          "tip": "더 맛있게 먹는 팁"
+        }}
+        """
 
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant that provides food recommendations in JSON format."},
-            {"role": "user", "content": prompt}
-        ],
-        "response_format": { "type": "json_object" }
-    }
+        # GPT-4o 모델 호출
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that provides food recommendations in JSON format."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={ "type": "json_object" }
+        )
 
-    # Exponential Backoff 구현
-    retries = 5
-    for i in range(retries):
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
-            if response.status_code == 200:
-                result = response.json()
-                content = result['choices'][0]['message']['content']
-                return json.loads(content)
-            elif response.status_code == 401:
-                # API 키 오류인 경우 즉시 중단하고 사용자에게 알림
-                return {
-                    "menu_name": "API 키 오류",
-                    "reason": "입력하신 OpenAI API 키가 유효하지 않습니다 (401 Error).",
-                    "tip": "키가 정확한지, 만료되지는 않았는지 확인해주세요."
-                }
-            elif response.status_code == 429: # Rate limit
-                time.sleep(2**i)
-                continue
-            else:
-                st.error(f"API 오류 발생: {response.status_code}")
-                break
-        except Exception as e:
-            time.sleep(2**i)
-            continue
-    
-    return None
+        # 결과 파싱
+        content = response.choices[0].message.content
+        return json.loads(content)
+
+    except Exception as e:
+        # 인증 오류 처리 (401)
+        if "401" in str(e):
+            return {
+                "menu_name": "API 키 인증 실패",
+                "reason": "입력하신 API 키가 유효하지 않습니다. (401 Unauthorized)",
+                "tip": "키를 다시 확인하거나 OpenAI 대시보드에서 유효성을 확인하세요."
+            }
+        # 기타 에러 처리
+        st.error(f"오류 발생: {str(e)}")
+        return None
 
 def main():
     st.title("🍲 ChatGPT 맞춤 음식 추천")
     st.write("당신의 오늘 기분과 날씨를 분석하여 맛있는 메뉴를 제안합니다.")
     st.markdown("---")
 
-    # --- Sidebar ---
-    st.sidebar.header("⚙️ 개인 설정")
-    preferred_categories = st.sidebar.multiselect(
-        "선호하는 카테고리",
-        options=["한식", "일식", "중식", "양식", "아시아 푸드", "분식", "패스트푸드", "디저트"],
-        default=["한식", "일식", "중식", "양식"]
-    )
+    # --- API 키 입력 ---
+    st.subheader("🔑 서비스 설정을 완료해주세요")
+    api_key_input = st.text_input("OpenAI API Key를 입력하세요 (sk-...)", type="password", help="https://platform.openai.com/api-keys 에서 발급 가능합니다.")
     
-    if not OPENAI_API_KEY:
-        st.sidebar.warning("⚠️ OPENAI_API_KEY를 코드에 입력해주세요.")
-    else:
-        st.sidebar.success("✅ API 키가 설정되었습니다.")
+    if not api_key_input:
+        st.info("💡 API 키를 입력해야 추천 기능을 사용할 수 있습니다.")
+
+    st.markdown("---")
 
     # --- Main Inputs ---
+    st.subheader("🍴 오늘의 상태와 취향")
+    
+    # 카테고리 선택
+    preferred_categories = st.multiselect(
+        "선호하는 음식 카테고리를 선택하세요",
+        options=["한식", "일식", "중식", "양식", "아시아 푸드", "분식", "패스트푸드", "디저트"],
+        default=["한식", "일식"]
+    )
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -128,41 +114,44 @@ def main():
 
     st.markdown("---")
 
+    # 버튼 클릭 시 동작
     if st.button("✨ ChatGPT에게 메뉴 추천받기"):
-        if not preferred_categories:
+        if not api_key_input:
+            st.warning("먼저 API 키를 입력해주세요!")
+        elif not preferred_categories:
             st.error("최소 하나 이상의 카테고리를 선택해주세요!")
-            return
+        else:
+            with st.spinner("ChatGPT가 최고의 메뉴를 선별 중입니다..."):
+                recommendation = get_gpt_recommendation(api_key_input, mood, weather, taste, preferred_categories)
 
-        with st.spinner("ChatGPT가 최고의 메뉴를 선별 중입니다..."):
-            recommendation = get_gpt_recommendation(mood, weather, taste, preferred_categories)
-
-            if recommendation:
-                # API 키 오류 등 비정상적인 응답 처리
-                if "오류" in recommendation['menu_name'] or "미설정" in recommendation['menu_name']:
-                    st.error(recommendation['reason'])
-                    st.info(f"💡 {recommendation['tip']}")
+                if recommendation:
+                    if "실패" in recommendation['menu_name'] or "미입력" in recommendation['menu_name']:
+                        st.error(recommendation['reason'])
+                        st.info(f"💡 {recommendation['tip']}")
+                    else:
+                        st.balloons()
+                        
+                        # 결과 카드 디자인
+                        st.markdown(f"""
+                        <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f;">
+                            <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['menu_name']}</h2>
+                            <p style="font-size: 1.1em; color: #333; line-height: 1.6;">{recommendation['reason']}</p>
+                            <hr style="border: 0.5px solid #eee; margin: 20px 0;">
+                            <p><strong>💡 더 맛있게 먹는 팁:</strong> {recommendation['tip']}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # 이미지 표시
+                        st.markdown("### 🖼️ 메뉴 이미지")
+                        query = recommendation['menu_name'].replace(" ", ",")
+                        image_url = f"https://loremflickr.com/800/600/{query},food/all"
+                        st.image(image_url, caption=f"맛있는 {recommendation['menu_name']} (예시 이미지)")
                 else:
-                    st.balloons()
-                    
-                    # 결과 카드 디자인
-                    st.markdown(f"""
-                    <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f;">
-                        <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['menu_name']}</h2>
-                        <p style="font-size: 1.1em; color: #333; line-height: 1.6;">{recommendation['reason']}</p>
-                        <hr style="border: 0.5px solid #eee; margin: 20px 0;">
-                        <p><strong>💡 더 맛있게 먹는 팁:</strong> {recommendation['tip']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # 이미지 표시 (안정적인 이미지 서비스 활용)
-                    st.markdown("### 🖼️ 메뉴 이미지")
-                    query = recommendation['menu_name'].replace(" ", ",")
-                    # 고해상도 음식 이미지를 가져오기 위한 쿼리
-                    image_url = f"https://loremflickr.com/800/600/{query},food/all"
-                    st.image(image_url, caption=f"맛있는 {recommendation['menu_name']} (예시 이미지)")
-                
-            else:
-                st.error("추천을 불러오는 과정에서 네트워크 오류가 발생했습니다.")
+                    st.error("추천을 불러오는 과정에서 네트워크 오류가 발생했습니다.")
+
+    # 하단 푸터
+    st.markdown("---")
+    st.caption("© AI Food Recommender powered by GPT-4o")
 
 if __name__ == "__main__":
     main()
