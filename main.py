@@ -99,7 +99,7 @@ def main():
                 if recommendation:
                     st.balloons()
                     
-                    # 결과 카드 디자인
+                    # 결과 카드 디자인 (사진 부분 제거)
                     st.markdown(f"""
                     <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f; margin-bottom: 20px;">
                         <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['name']}</h2>
@@ -108,11 +108,6 @@ def main():
                         <p><strong>💡 더 맛있게 먹는 팁:</strong> {recommendation['tip']}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    # 이미지 표시 (텍스트 헤더 제거)
-                    query = recommendation['name'].replace(" ", ",")
-                    image_url = f"https://loremflickr.com/800/600/{query},food/all"
-                    st.image(image_url, use_container_width=True)
                 else:
                     st.error("해당 조건에 맞는 음식을 찾지 못했습니다. 다른 카테고리를 선택해 보세요!")
 
