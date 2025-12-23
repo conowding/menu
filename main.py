@@ -13,7 +13,7 @@ st.set_page_config(
 # OpenAI API 설정
 # 에러 수정 팁: 401 오류는 아래 변수에 입력한 키가 틀렸을 때 발생합니다. 
 # https://platform.openai.com/api-keys 에서 키를 다시 발급받아 붙여넣어주세요.
-OPENAI_API_KEY = "" 
+OPENAI_API_KEY = "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" 
 
 def get_gpt_recommendation(mood, weather, taste, preferred_categories):
     """ChatGPT API(GPT-4o)를 호출하여 음식 추천을 받습니다."""
