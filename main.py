@@ -58,7 +58,7 @@ def main():
     st.markdown("---")
 
     # --- Main Inputs ---
-    st.subheader("🍴 오늘의 상태와 취향")
+    st.subheader("🍴 맞춤 음식 추천 서비스")
     
     preferred_categories = st.multiselect(
         "선호하는 음식 카테고리를 선택하세요",
