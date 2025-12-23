@@ -30,32 +30,23 @@ FOOD_DB = [
 
 def get_local_recommendation(mood, weather, taste, preferred_categories):
     """로컬 데이터에서 조건에 맞는 음식을 필터링하여 추천합니다."""
-    
-    # 1차 필터링: 선호 카테고리 일치
     category_matches = [f for f in FOOD_DB if f["category"] in preferred_categories]
-    
-    # 2차 필터링: 맛 일치
     taste_matches = [f for f in category_matches if f["taste"] == taste]
     
-    # 3차 필터링: 날씨나 기분 일치 (유연하게 적용)
     final_candidates = [
         f for f in taste_matches 
         if weather in f["weather"] or mood in f["mood"]
     ]
     
-    # 만약 결과가 없으면 맛 일치 결과에서 랜덤 선택
     if not final_candidates:
         final_candidates = taste_matches
-        
-    # 그래도 결과가 없으면 카테고리 결과에서 랜덤 선택
     if not final_candidates:
         final_candidates = category_matches
         
-    # 최종 결과 반환
     if final_candidates:
         res = random.choice(final_candidates)
         return {
-            "menu_name": res["name"],
+            "name": res["name"],
             "reason": f"오늘처럼 {weather} 날씨에 {mood} 기분이라면, {taste}이 일품인 {res['name']}이 제격입니다!",
             "tip": res["tip"]
         }
@@ -69,7 +60,6 @@ def main():
     # --- Main Inputs ---
     st.subheader("🍴 오늘의 상태와 취향")
     
-    # 카테고리 선택 (중앙 배치)
     preferred_categories = st.multiselect(
         "선호하는 음식 카테고리를 선택하세요",
         options=["한식", "일식", "중식", "양식", "아시아 푸드", "분식", "패스트푸드", "디저트"],
@@ -98,14 +88,12 @@ def main():
 
     st.markdown("---")
 
-    # 버튼 클릭 시 동작
     if st.button("✨ 오늘의 메뉴 추천받기"):
         if not preferred_categories:
             st.error("최소 하나 이상의 카테고리를 선택해주세요!")
         else:
             with st.spinner("최고의 메뉴를 선별 중입니다..."):
-                # 실제 로직 실행 (API 호출 없음)
-                time.sleep(1) # 부드러운 UI 연출을 위한 지연
+                time.sleep(1) 
                 recommendation = get_local_recommendation(mood, weather, taste, preferred_categories)
 
                 if recommendation:
@@ -113,23 +101,21 @@ def main():
                     
                     # 결과 카드 디자인
                     st.markdown(f"""
-                    <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f;">
-                        <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['menu_name']}</h2>
+                    <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f; margin-bottom: 20px;">
+                        <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['name']}</h2>
                         <p style="font-size: 1.1em; color: #333; line-height: 1.6;">{recommendation['reason']}</p>
                         <hr style="border: 0.5px solid #eee; margin: 20px 0;">
                         <p><strong>💡 더 맛있게 먹는 팁:</strong> {recommendation['tip']}</p>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # 이미지 표시
-                    st.markdown("### 🖼️ 메뉴 이미지")
-                    query = recommendation['menu_name'].replace(" ", ",")
+                    # 이미지 표시 (텍스트 헤더 제거)
+                    query = recommendation['name'].replace(" ", ",")
                     image_url = f"https://loremflickr.com/800/600/{query},food/all"
-                    st.image(image_url, caption=f"맛있는 {recommendation['menu_name']} (예시 이미지)")
+                    st.image(image_url, use_container_width=True)
                 else:
                     st.error("해당 조건에 맞는 음식을 찾지 못했습니다. 다른 카테고리를 선택해 보세요!")
 
-    # 하단 푸터
     st.markdown("---")
     st.caption("© AI Food Recommender System")
 
