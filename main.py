@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # OpenAI API 설정 (사용자의 API 키를 여기에 입력해야 합니다)
-OPENAI_API_KEY = "" # 실제 사용 시 본인의 OpenAI API Key를 입력하세요.
+OPENAI_API_KEY = "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" # 실제 사용 시 본인의 OpenAI API Key를 입력하세요.
 
 def get_gpt_recommendation(mood, weather, taste, preferred_categories):
     """ChatGPT API(GPT-4o)를 호출하여 음식 추천을 받습니다."""
@@ -19,7 +19,7 @@ def get_gpt_recommendation(mood, weather, taste, preferred_categories):
         return {
             "menu_name": "API 키 미설정",
             "reason": "프로그램 상단에 OpenAI API Key를 설정해야 합니다.",
-            "tip": "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"
+            "tip": "OpenAI 계정에서 발급받은 키를 코드의 OPENAI_API_KEY 변수에 넣어주세요."
         }
 
     url = "https://api.openai.com/v1/chat/completions"
