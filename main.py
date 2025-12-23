@@ -1,91 +1,75 @@
 import streamlit as st
-from openai import OpenAI
+import random
 import time
-import json
 
 # --- Configuration & Setup ---
 st.set_page_config(
-    page_title="ChatGPT 오늘의 메뉴 추천",
+    page_title="맞춤 음식 추천 서비스",
     page_icon="🍲",
     layout="centered"
 )
 
-def get_gpt_recommendation(api_key, mood, weather, taste, preferred_categories):
-    """OpenAI 공식 라이브러리를 사용하여 음식 추천을 받습니다."""
+# --- 로컬 음식 데이터베이스 ---
+FOOD_DB = [
+    {"name": "김치찌개", "category": "한식", "weather": ["흐림", "비", "한파"], "mood": ["평범함", "피곤함"], "taste": "매콤한 맛", "tip": "라면 사리를 추가하면 더 맛있어요!"},
+    {"name": "삼겹살", "category": "한식", "weather": ["맑음", "강풍"], "mood": ["즐거움", "신남"], "taste": "담백한 맛", "tip": "구운 김치와 마늘을 곁들여 드세요."},
+    {"name": "비빔밥", "category": "한식", "weather": ["맑음", "무더위"], "mood": ["평범함", "차분함"], "taste": "담백한 맛", "tip": "참기름 한 큰술을 더 넣으면 고소함이 살아나요."},
+    {"name": "초밥", "category": "일식", "weather": ["맑음", "흐림"], "mood": ["즐거움", "차분함"], "taste": "상큼한 맛", "tip": "흰 살 생선부터 붉은 살 생선 순서로 드세요."},
+    {"name": "돈카츠", "category": "일식", "weather": ["맑음", "눈"], "mood": ["평범함", "즐거움"], "taste": "담백한 맛", "tip": "와사비를 살짝 올려 먹으면 느끼함을 잡아줍니다."},
+    {"name": "라멘", "category": "일식", "weather": ["비", "눈", "한파"], "mood": ["우울함", "피곤함"], "taste": "느끼한 맛", "tip": "반숙 계란(아지타마고)을 추가해 보세요."},
+    {"name": "짜장면", "category": "중식", "weather": ["흐림", "강풍"], "mood": ["평범함", "의욕적"], "taste": "달콤한 맛", "tip": "고춧가루를 살짝 뿌려 먹으면 더 깔끔해요."},
+    {"name": "짬뽕", "category": "중식", "weather": ["비", "눈", "강풍"], "mood": ["스트레스 받음", "피곤함"], "taste": "매콤한 맛", "tip": "해산물을 먼저 건져 먹고 면을 드세요."},
+    {"name": "파스타", "category": "양식", "weather": ["맑음", "흐림"], "mood": ["즐거움", "차분함"], "taste": "느끼한 맛", "tip": "바질 페스토나 파마산 치즈를 곁들여 보세요."},
+    {"name": "피자", "category": "양식", "weather": ["맑음", "무더위"], "mood": ["신남", "의욕적"], "taste": "느끼한 맛", "tip": "핫소스를 뿌려 매콤함을 조절해 보세요."},
+    {"name": "떡볶이", "category": "분식", "weather": ["맑음", "비"], "mood": ["스트레스 받음", "신남"], "taste": "매콤한 맛", "tip": "튀김이나 순대를 소스에 찍어 드세요."},
+    {"name": "햄버거", "category": "패스트푸드", "weather": ["맑음", "강풍"], "mood": ["신남", "피곤함"], "taste": "느끼한 맛", "tip": "콜라 대신 밀크쉐이크와 함께 먹어보세요."},
+    {"name": "쌀국수", "category": "아시아 푸드", "weather": ["흐림", "비", "한파"], "mood": ["평범함", "차분함"], "taste": "담백한 맛", "tip": "해산물 소스와 스리라차 소스를 섞어 찍어 드세요."},
+    {"name": "마라탕", "category": "아시아 푸드", "weather": ["흐림", "비"], "mood": ["스트레스 받음", "의욕적"], "taste": "매콤한 맛", "tip": "땅콩 소스(마장)를 찍어 먹으면 매운맛이 중화됩니다."},
+    {"name": "조각 케이크", "category": "디저트", "weather": ["맑음", "눈"], "mood": ["우울함", "즐거움"], "taste": "달콤한 맛", "tip": "아메리카노와 함께 즐기면 단맛이 중화되어 완벽합니다."}
+]
+
+def get_local_recommendation(mood, weather, taste, preferred_categories):
+    """로컬 데이터에서 조건에 맞는 음식을 필터링하여 추천합니다."""
     
-    # 키가 비어있는지 확인
-    if not api_key:
+    # 1차 필터링: 선호 카테고리 일치
+    category_matches = [f for f in FOOD_DB if f["category"] in preferred_categories]
+    
+    # 2차 필터링: 맛 일치
+    taste_matches = [f for f in category_matches if f["taste"] == taste]
+    
+    # 3차 필터링: 날씨나 기분 일치 (유연하게 적용)
+    final_candidates = [
+        f for f in taste_matches 
+        if weather in f["weather"] or mood in f["mood"]
+    ]
+    
+    # 만약 결과가 없으면 맛 일치 결과에서 랜덤 선택
+    if not final_candidates:
+        final_candidates = taste_matches
+        
+    # 그래도 결과가 없으면 카테고리 결과에서 랜덤 선택
+    if not final_candidates:
+        final_candidates = category_matches
+        
+    # 최종 결과 반환
+    if final_candidates:
+        res = random.choice(final_candidates)
         return {
-            "menu_name": "API 키 미입력",
-            "reason": "화면 상단에서 OpenAI API Key를 입력해주세요.",
-            "tip": "sk-... 형식의 키가 필요합니다."
+            "menu_name": res["name"],
+            "reason": f"오늘처럼 {weather} 날씨에 {mood} 기분이라면, {taste}이 일품인 {res['name']}이 제격입니다!",
+            "tip": res["tip"]
         }
-
-    try:
-        # OpenAI 클라이언트 초기화
-        client = OpenAI(api_key=api_key.strip())
-        
-        prompt = f"""
-        당신은 최고의 미식가이자 영양사입니다. 다음 상황에 가장 잘 어울리는 음식 메뉴 1개를 추천해주세요.
-        
-        상황 정보:
-        - 기분: {mood}
-        - 날씨: {weather}
-        - 당기는 맛: {taste}
-        - 선호 카테고리: {', '.join(preferred_categories)}
-        
-        반드시 다음 JSON 형식을 엄격히 지켜서 출력하세요 (추가 텍스트 없이 JSON만 반환):
-        {{
-          "menu_name": "음식 이름",
-          "reason": "추천하는 이유 (2~3문장)",
-          "tip": "더 맛있게 먹는 팁"
-        }}
-        """
-
-        # GPT-4o 모델 호출
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that provides food recommendations in JSON format."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={ "type": "json_object" }
-        )
-
-        # 결과 파싱
-        content = response.choices[0].message.content
-        return json.loads(content)
-
-    except Exception as e:
-        # 인증 오류 처리 (401)
-        if "401" in str(e):
-            return {
-                "menu_name": "API 키 인증 실패",
-                "reason": "입력하신 API 키가 유효하지 않습니다. (401 Unauthorized)",
-                "tip": "키를 다시 확인하거나 OpenAI 대시보드에서 유효성을 확인하세요."
-            }
-        # 기타 에러 처리
-        st.error(f"오류 발생: {str(e)}")
-        return None
+    return None
 
 def main():
-    st.title("🍲 ChatGPT 맞춤 음식 추천")
+    st.title("🍲 맞춤 음식 추천 서비스")
     st.write("당신의 오늘 기분과 날씨를 분석하여 맛있는 메뉴를 제안합니다.")
-    st.markdown("---")
-
-    # --- API 키 입력 ---
-    st.subheader("🔑 서비스 설정을 완료해주세요")
-    api_key_input = st.text_input("OpenAI API Key를 입력하세요 (sk-...)", type="password", help="https://platform.openai.com/api-keys 에서 발급 가능합니다.")
-    
-    if not api_key_input:
-        st.info("💡 API 키를 입력해야 추천 기능을 사용할 수 있습니다.")
-
     st.markdown("---")
 
     # --- Main Inputs ---
     st.subheader("🍴 오늘의 상태와 취향")
     
-    # 카테고리 선택
+    # 카테고리 선택 (중앙 배치)
     preferred_categories = st.multiselect(
         "선호하는 음식 카테고리를 선택하세요",
         options=["한식", "일식", "중식", "양식", "아시아 푸드", "분식", "패스트푸드", "디저트"],
@@ -115,43 +99,39 @@ def main():
     st.markdown("---")
 
     # 버튼 클릭 시 동작
-    if st.button("✨ ChatGPT에게 메뉴 추천받기"):
-        if not api_key_input:
-            st.warning("먼저 API 키를 입력해주세요!")
-        elif not preferred_categories:
+    if st.button("✨ 오늘의 메뉴 추천받기"):
+        if not preferred_categories:
             st.error("최소 하나 이상의 카테고리를 선택해주세요!")
         else:
-            with st.spinner("ChatGPT가 최고의 메뉴를 선별 중입니다..."):
-                recommendation = get_gpt_recommendation(api_key_input, mood, weather, taste, preferred_categories)
+            with st.spinner("최고의 메뉴를 선별 중입니다..."):
+                # 실제 로직 실행 (API 호출 없음)
+                time.sleep(1) # 부드러운 UI 연출을 위한 지연
+                recommendation = get_local_recommendation(mood, weather, taste, preferred_categories)
 
                 if recommendation:
-                    if "실패" in recommendation['menu_name'] or "미입력" in recommendation['menu_name']:
-                        st.error(recommendation['reason'])
-                        st.info(f"💡 {recommendation['tip']}")
-                    else:
-                        st.balloons()
-                        
-                        # 결과 카드 디자인
-                        st.markdown(f"""
-                        <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f;">
-                            <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['menu_name']}</h2>
-                            <p style="font-size: 1.1em; color: #333; line-height: 1.6;">{recommendation['reason']}</p>
-                            <hr style="border: 0.5px solid #eee; margin: 20px 0;">
-                            <p><strong>💡 더 맛있게 먹는 팁:</strong> {recommendation['tip']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # 이미지 표시
-                        st.markdown("### 🖼️ 메뉴 이미지")
-                        query = recommendation['menu_name'].replace(" ", ",")
-                        image_url = f"https://loremflickr.com/800/600/{query},food/all"
-                        st.image(image_url, caption=f"맛있는 {recommendation['menu_name']} (예시 이미지)")
+                    st.balloons()
+                    
+                    # 결과 카드 디자인
+                    st.markdown(f"""
+                    <div style="background-color: #f9f9f9; padding: 25px; border-radius: 15px; border: 1px solid #ddd; border-top: 5px solid #10a37f;">
+                        <h2 style="color: #10a37f; margin-top: 0;">오늘의 추천: {recommendation['menu_name']}</h2>
+                        <p style="font-size: 1.1em; color: #333; line-height: 1.6;">{recommendation['reason']}</p>
+                        <hr style="border: 0.5px solid #eee; margin: 20px 0;">
+                        <p><strong>💡 더 맛있게 먹는 팁:</strong> {recommendation['tip']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 이미지 표시
+                    st.markdown("### 🖼️ 메뉴 이미지")
+                    query = recommendation['menu_name'].replace(" ", ",")
+                    image_url = f"https://loremflickr.com/800/600/{query},food/all"
+                    st.image(image_url, caption=f"맛있는 {recommendation['menu_name']} (예시 이미지)")
                 else:
-                    st.error("추천을 불러오는 과정에서 네트워크 오류가 발생했습니다.")
+                    st.error("해당 조건에 맞는 음식을 찾지 못했습니다. 다른 카테고리를 선택해 보세요!")
 
     # 하단 푸터
     st.markdown("---")
-    st.caption("© AI Food Recommender powered by GPT-4o")
+    st.caption("© AI Food Recommender System")
 
 if __name__ == "__main__":
     main()
